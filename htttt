@@ -1,1 +1,1163 @@
 
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Wrench, Settings, Compass, Gauge, Droplet, Battery, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
+import * as THREE from 'three';
+
+const CarMechanicsApp = () => {
+  const [selectedSection, setSelectedSection] = useState('engine');
+  const [activeTab, setActiveTab] = useState('overview');
+  const canvasRef = useRef(null);
+  const sceneRef = useRef(null);
+  
+  useEffect(() => {
+    if (canvasRef.current && !sceneRef.current) {
+      initThreeJS();
+    }
+    
+    return () => {
+      if (sceneRef.current) {
+        // Clean up Three.js resources
+        sceneRef.current.dispose && sceneRef.current.dispose();
+      }
+    };
+  }, []);
+  
+  // モデル選択が変わったときの効果
+  useEffect(() => {
+    if (sceneRef.current) {
+      updateModel(selectedSection);
+    }
+  }, [selectedSection]);
+  
+  const initThreeJS = () => {
+    // Set up scene
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    
+    // Set up camera
+    const camera = new THREE.PerspectiveCamera(75, 2, 0.1, 1000);
+    camera.position.z = 5;
+    
+    // Set up renderer
+    const renderer = new THREE.WebGLRenderer({ 
+      canvas: canvasRef.current,
+      antialias: true
+    });
+    renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
+    
+    // Add light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 5, 5);
+    scene.add(directionalLight);
+    
+    // Initial model (engine)
+    createEngineModel(scene);
+    
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      
+      if (scene.children.length > 2) { // Lights are already 2 objects
+        scene.children.forEach((child) => {
+          if (child.type === "Group") {
+            child.rotation.y += 0.005;
+          }
+        });
+      }
+      
+      renderer.render(scene, camera);
+    };
+    
+    animate();
+    
+    // Store references
+    sceneRef.current = {
+      scene,
+      camera,
+      renderer,
+      dispose: () => {
+        cancelAnimationFrame(animate);
+        renderer.dispose();
+      }
+    };
+    
+    // Handle resize
+    const handleResize = () => {
+      camera.aspect = canvasRef.current.clientWidth / canvasRef.current.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  };
+  
+  const updateModel = (modelType) => {
+    const { scene } = sceneRef.current;
+    
+    // Remove old model
+    scene.children.forEach((child) => {
+      if (child.type === "Group") {
+        scene.remove(child);
+      }
+    });
+    
+    // Add new model based on selection
+    switch (modelType) {
+      case 'engine':
+        createEngineModel(scene);
+        break;
+      case 'transmission':
+        createTransmissionModel(scene);
+        break;
+      case 'suspension':
+        createSuspensionModel(scene);
+        break;
+      case 'brakes':
+        createBrakesModel(scene);
+        break;
+      case 'fuel':
+        createFuelModel(scene);
+        break;
+      case 'electrical':
+        createElectricalModel(scene);
+        break;
+      default:
+        createEngineModel(scene);
+    }
+  };
+  
+  const createEngineModel = (scene) => {
+    const engineGroup = new THREE.Group();
+    
+    // Engine block
+    const blockGeometry = new THREE.BoxGeometry(2, 1.2, 1.5);
+    const blockMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+    const block = new THREE.Mesh(blockGeometry, blockMaterial);
+    engineGroup.add(block);
+    
+    // Cylinders
+    for (let i = 0; i < 4; i++) {
+      const cylinderGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.4, 16);
+      const cylinderMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+      const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+      cylinder.position.set(-0.75 + (i * 0.5), 0.6, 0);
+      cylinder.rotation.x = Math.PI / 2;
+      engineGroup.add(cylinder);
+    }
+    
+    // Crankshaft
+    const crankshaftGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2.2, 16);
+    const crankshaftMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+    const crankshaft = new THREE.Mesh(crankshaftGeometry, crankshaftMaterial);
+    crankshaft.position.set(0, -0.4, 0);
+    crankshaft.rotation.z = Math.PI / 2;
+    engineGroup.add(crankshaft);
+    
+    // Pistons
+    for (let i = 0; i < 4; i++) {
+      const pistonGeometry = new THREE.CylinderGeometry(0.18, 0.18, 0.3, 16);
+      const pistonMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+      const piston = new THREE.Mesh(pistonGeometry, pistonMaterial);
+      piston.position.set(-0.75 + (i * 0.5), 0.2, 0);
+      piston.rotation.x = Math.PI / 2;
+      engineGroup.add(piston);
+      
+      // Connecting rod
+      const rodGeometry = new THREE.BoxGeometry(0.05, 0.6, 0.1);
+      const rodMaterial = new THREE.MeshPhongMaterial({ color: 0x999999 });
+      const rod = new THREE.Mesh(rodGeometry, rodMaterial);
+      rod.position.set(-0.75 + (i * 0.5), -0.1, 0);
+      engineGroup.add(rod);
+    }
+    
+    // Valves for first cylinder
+    for (let i = 0; i < 2; i++) {
+      const valveGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8);
+      const valveMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+      const valve = new THREE.Mesh(valveGeometry, valveMaterial);
+      valve.position.set(-0.85 + (i * 0.2), 1, 0);
+      valve.rotation.x = Math.PI / 2;
+      engineGroup.add(valve);
+      
+      // Valve springs
+      const springGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 8);
+      const springMaterial = new THREE.MeshPhongMaterial({ color: 0x888888, wireframe: true });
+      const spring = new THREE.Mesh(springGeometry, springMaterial);
+      spring.position.set(-0.85 + (i * 0.2), 0.9, 0);
+      spring.rotation.x = Math.PI / 2;
+      engineGroup.add(spring);
+    }
+    
+    // Camshaft
+    const camshaftGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 16);
+    const camshaftMaterial = new THREE.MeshPhongMaterial({ color: 0x555555 });
+    const camshaft = new THREE.Mesh(camshaftGeometry, camshaftMaterial);
+    camshaft.position.set(0, 1.1, 0);
+    camshaft.rotation.z = Math.PI / 2;
+    engineGroup.add(camshaft);
+    
+    // Cams
+    for (let i = 0; i < 8; i++) {
+      const camGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.15);
+      const camMaterial = new THREE.MeshPhongMaterial({ color: 0x444444 });
+      const cam = new THREE.Mesh(camGeometry, camMaterial);
+      cam.position.set(-0.85 + (i * 0.25), 1.15, 0);
+      cam.rotation.z = Math.random() * Math.PI;
+      engineGroup.add(cam);
+    }
+    
+    scene.add(engineGroup);
+  };
+  
+  const createTransmissionModel = (scene) => {
+    const transmissionGroup = new THREE.Group();
+    
+    // Transmission case
+    const caseGeometry = new THREE.BoxGeometry(1.8, 1, 1);
+    const caseMaterial = new THREE.MeshPhongMaterial({ color: 0x444444 });
+    const case1 = new THREE.Mesh(caseGeometry, caseMaterial);
+    transmissionGroup.add(case1);
+    
+    // Gears
+    for (let i = 0; i < 3; i++) {
+      const gearGeometry = new THREE.CylinderGeometry(0.3 - (i * 0.05), 0.3 - (i * 0.05), 0.2, 32);
+      const gearMaterial = new THREE.MeshPhongMaterial({ color: 0x999999 });
+      const gear = new THREE.Mesh(gearGeometry, gearMaterial);
+      gear.position.set(-0.5 + (i * 0.5), 0, 0.2);
+      gear.rotation.x = Math.PI / 2;
+      
+      // Gear teeth
+      for (let j = 0; j < 12; j++) {
+        const toothGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.2);
+        const tooth = new THREE.Mesh(toothGeometry, gearMaterial);
+        const angle = (j / 12) * Math.PI * 2;
+        tooth.position.set(
+          Math.cos(angle) * (0.3 - (i * 0.05)),
+          Math.sin(angle) * (0.3 - (i * 0.05)),
+          0
+        );
+        tooth.rotation.z = angle;
+        gear.add(tooth);
+      }
+      
+      transmissionGroup.add(gear);
+    }
+    
+    // Counter gears
+    for (let i = 0; i < 2; i++) {
+      const gearGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.2, 32);
+      const gearMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+      const gear = new THREE.Mesh(gearGeometry, gearMaterial);
+      gear.position.set(-0.25 + (i * 0.5), 0, -0.2);
+      gear.rotation.x = Math.PI / 2;
+      
+      // Gear teeth
+      for (let j = 0; j < 10; j++) {
+        const toothGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.2);
+        const tooth = new THREE.Mesh(toothGeometry, gearMaterial);
+        const angle = (j / 10) * Math.PI * 2;
+        tooth.position.set(
+          Math.cos(angle) * 0.25,
+          Math.sin(angle) * 0.25,
+          0
+        );
+        tooth.rotation.z = angle;
+        gear.add(tooth);
+      }
+      
+      transmissionGroup.add(gear);
+    }
+    
+    // Shaft
+    const shaftGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2, 16);
+    const shaftMaterial = new THREE.MeshPhongMaterial({ color: 0x777777 });
+    const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+    shaft.position.set(0, 0, 0);
+    shaft.rotation.z = Math.PI / 2;
+    transmissionGroup.add(shaft);
+    
+    // Counter shaft
+    const counterShaftGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.5, 16);
+    const counterShaft = new THREE.Mesh(counterShaftGeometry, shaftMaterial);
+    counterShaft.position.set(0, 0, -0.2);
+    counterShaft.rotation.z = Math.PI / 2;
+    transmissionGroup.add(counterShaft);
+    
+    // Shift forks
+    for (let i = 0; i < 2; i++) {
+      const forkGeometry = new THREE.BoxGeometry(0.4, 0.05, 0.05);
+      const forkMaterial = new THREE.MeshPhongMaterial({ color: 0x555555 });
+      const fork = new THREE.Mesh(forkGeometry, forkMaterial);
+      fork.position.set(-0.25 + (i * 0.5), 0.3, 0.2);
+      transmissionGroup.add(fork);
+      
+      const armGeometry = new THREE.BoxGeometry(0.05, 0.3, 0.05);
+      const arm = new THREE.Mesh(armGeometry, forkMaterial);
+      arm.position.set(-0.25 + (i * 0.5), 0.15, 0.4);
+      transmissionGroup.add(arm);
+    }
+    
+    scene.add(transmissionGroup);
+  };
+  
+  const createSuspensionModel = (scene) => {
+    const suspensionGroup = new THREE.Group();
+    
+    // Wheel
+    const wheelGeometry = new THREE.CylinderGeometry(0.7, 0.7, 0.3, 24);
+    const wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.position.set(0, 0, 1.5);
+    wheel.rotation.x = Math.PI / 2;
+    suspensionGroup.add(wheel);
+    
+    // Wheel rim
+    const rimGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.31, 12);
+    const rimMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+    const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+    rim.position.set(0, 0, 1.5);
+    rim.rotation.x = Math.PI / 2;
+    suspensionGroup.add(rim);
+    
+    // Brake disc
+    const discGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.05, 12);
+    const discMaterial = new THREE.MeshPhongMaterial({ color: 0x777777 });
+    const disc = new THREE.Mesh(discGeometry, discMaterial);
+    disc.position.set(0, 0, 1.1);
+    disc.rotation.x = Math.PI / 2;
+    suspensionGroup.add(disc);
+    
+    // Brake caliper
+    const caliperGeometry = new THREE.BoxGeometry(0.2, 0.15, 0.1);
+    const caliperMaterial = new THREE.MeshPhongMaterial({ color: 0xdd0000 });
+    const caliper = new THREE.Mesh(caliperGeometry, caliperMaterial);
+    caliper.position.set(0, -0.3, 1.1);
+    suspensionGroup.add(caliper);
+    
+    // Shock absorber outer
+    const shockOuterGeometry = new THREE.CylinderGeometry(0.1, 0.1, 1, 12);
+    const shockOuterMaterial = new THREE.MeshPhongMaterial({ color: 0x555555 });
+    const shockOuter = new THREE.Mesh(shockOuterGeometry, shockOuterMaterial);
+    shockOuter.position.set(0, 0.8, 0.8);
+    suspensionGroup.add(shockOuter);
+    
+    // Shock absorber inner
+    const shockInnerGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.7, 12);
+    const shockInnerMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+    const shockInner = new THREE.Mesh(shockInnerGeometry, shockInnerMaterial);
+    shockInner.position.set(0, 0.45, 0.8);
+    suspensionGroup.add(shockInner);
+    
+    // Spring
+    const springRadius = 0.2;
+    const springHeight = 1;
+    const springSegments = 16;
+    const springCoils = 8;
+    const springThickness = 0.04;
+    
+    const springCurve = new THREE.CatmullRomCurve3(
+      Array(springSegments + 1).fill().map((_, i) => {
+        const t = i / springSegments;
+        const angle = t * Math.PI * 2 * springCoils;
+        return new THREE.Vector3(
+          Math.cos(angle) * springRadius,
+          t * springHeight + 0.3,
+          Math.sin(angle) * springRadius + 0.8
+        );
+      })
+    );
+    
+    const springGeometry = new THREE.TubeGeometry(
+      springCurve,
+      springSegments * 4,
+      springThickness,
+      8,
+      false
+    );
+    
+    const springMaterial = new THREE.MeshPhongMaterial({ color: 0xffaa00 });
+    const spring = new THREE.Mesh(springGeometry, springMaterial);
+    suspensionGroup.add(spring);
+    
+    // Upper control arm
+    const upperArmGeometry = new THREE.BoxGeometry(0.8, 0.05, 0.05);
+    const armMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+    const upperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
+    upperArm.position.set(0.3, 0.2, 0.7);
+    upperArm.rotation.z = Math.PI / 12;
+    suspensionGroup.add(upperArm);
+    
+    // Lower control arm
+    const lowerArmGeometry = new THREE.BoxGeometry(1, 0.05, 0.1);
+    const lowerArm = new THREE.Mesh(lowerArmGeometry, armMaterial);
+    lowerArm.position.set(0.4, -0.2, 0.7);
+    lowerArm.rotation.z = -Math.PI / 12;
+    suspensionGroup.add(lowerArm);
+    
+    // Knuckle
+    const knuckleGeometry = new THREE.BoxGeometry(0.15, 0.4, 0.1);
+    const knuckleMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+    const knuckle = new THREE.Mesh(knuckleGeometry, knuckleMaterial);
+    knuckle.position.set(0, 0, 1);
+    suspensionGroup.add(knuckle);
+    
+    // Tie rod
+    const tieRodGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8);
+    const tieRodMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+    const tieRod = new THREE.Mesh(tieRodGeometry, tieRodMaterial);
+    tieRod.position.set(0.6, 0, 0.7);
+    tieRod.rotation.z = Math.PI / 2;
+    suspensionGroup.add(tieRod);
+    
+    scene.add(suspensionGroup);
+  };
+  
+  const createBrakesModel = (scene) => {
+    const brakeGroup = new THREE.Group();
+    
+    // Brake disc
+    const discGeometry = new THREE.CylinderGeometry(1, 1, 0.1, 32);
+    const discMaterial = new THREE.MeshPhongMaterial({ color: 0xCCCCCC });
+    const disc = new THREE.Mesh(discGeometry, discMaterial);
+    disc.rotation.x = Math.PI / 2;
+    brakeGroup.add(disc);
+    
+    // Create cooling holes in the disc
+    for (let i = 0; i < 8; i++) {
+      const holeGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 16);
+      const hole = new THREE.Mesh(holeGeometry, discMaterial);
+      const angle = (i / 8) * Math.PI * 2;
+      hole.position.set(
+        Math.cos(angle) * 0.7,
+        0,
+        Math.sin(angle) * 0.7
+      );
+      hole.rotation.x = Math.PI / 2;
+      
+      // Create a CSG subtraction (simulating this with different color)
+      const holeMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
+      hole.material = holeMaterial;
+      brakeGroup.add(hole);
+    }
+    
+    // Caliper
+    const caliperGeometry = new THREE.BoxGeometry(0.4, 0.3, 1.2);
+    const caliperMaterial = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
+    const caliper = new THREE.Mesh(caliperGeometry, caliperMaterial);
+    caliper.position.set(0, 0.2, 0);
+    brakeGroup.add(caliper);
+    
+    // Brake pads
+    const padGeometry = new THREE.BoxGeometry(0.2, 0.1, 0.5);
+    const padMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+    
+    const padLeft = new THREE.Mesh(padGeometry, padMaterial);
+    padLeft.position.set(0, 0.05, 0.4);
+    brakeGroup.add(padLeft);
+    
+    const padRight = new THREE.Mesh(padGeometry, padMaterial);
+    padRight.position.set(0, 0.05, -0.4);
+    brakeGroup.add(padRight);
+    
+    // Brake lines
+    const lineGeometry = new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.3, 0.6),
+        new THREE.Vector3(0.3, 0.3, 0.6),
+        new THREE.Vector3(0.5, 0.5, 0.6),
+        new THREE.Vector3(0.7, 0.7, 0.6)
+      ]),
+      20,
+      0.02,
+      8,
+      false
+    );
+    const lineMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+    const line = new THREE.Mesh(lineGeometry, lineMaterial);
+    brakeGroup.add(line);
+    
+    // Brake master cylinder (simplified)
+    const cylinderGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.5, 16);
+    const cylinderMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+    const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+    cylinder.position.set(0.9, 0.9, 0.6);
+    cylinder.rotation.z = Math.PI / 2;
+    brakeGroup.add(cylinder);
+    
+    // Brake pedal (simplified)
+    const pedalGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.05);
+    const pedalMaterial = new THREE.MeshPhongMaterial({ color: 0x444444 });
+    const pedal = new THREE.Mesh(pedalGeometry, pedalMaterial);
+    pedal.position.set(1.1, 0.7, 0.6);
+    pedal.rotation.z = Math.PI / 6;
+    brakeGroup.add(pedal);
+    
+    scene.add(brakeGroup);
+  };
+  
+  const createFuelModel = (scene) => {
+    const fuelGroup = new THREE.Group();
+    
+    // Fuel tank
+    const tankGeometry = new THREE.BoxGeometry(2, 0.8, 1.2);
+    const tankMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0x444444,
+      transparent: true,
+      opacity: 0.8
+    });
+    const tank = new THREE.Mesh(tankGeometry, tankMaterial);
+    tank.position.set(0, -0.5, 0);
+    fuelGroup.add(tank);
+    
+    // Fuel inside (liquid)
+    const fuelGeometry = new THREE.BoxGeometry(1.9, 0.4, 1.1);
+    const fuelMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0xFFAA00,
+      transparent: true,
+      opacity: 0.7
+    });
+    const fuel = new THREE.Mesh(fuelGeometry, fuelMaterial);
+    fuel.position.set(0, -0.65, 0);
+    fuelGroup.add(fuel);
+    
+    // Fuel pump
+    const pumpGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.5, 16);
+    const pumpMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
+    const pump = new THREE.Mesh(pumpGeometry, pumpMaterial);
+    pump.position.set(0, 0.2, 0);
+    fuelGroup.add(pump);
+    
+    // Fuel lines (pipes)
+    const pipeGeometry = new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.4, 0),
+        new THREE.Vector3(0, 0.6, 0),
+        new THREE.Vector3(0.5, 0.8, 0),
+        new THREE.Vector3(1, 0.8, 0)
+      ]),
+      20,
+      0.05,
+      8,
+      false
+    );
+    const pipeMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+    const pipe = new THREE.Mesh(pipeGeometry, pipeMaterial);
+    fuelGroup.add(pipe);
+    
+    // Injector
+    const injectorGeometry = new THREE.ConeGeometry(0.1, 0.3, 16);
+    const injectorMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+    const injector = new THREE.Mesh(injectorGeometry, injectorMaterial);
+    injector.position.set(1, 0.8, 0);
+    injector.rotation.z = Math.PI / 2;
+    fuelGroup.add(injector);
+    
+    // Fuel filter
+    const filterGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 16);
+    const filterMaterial = new THREE.MeshPhongMaterial({ color: 0x5555ff });
+    const filter = new THREE.Mesh(filterGeometry, filterMaterial);
+    filter.position.set(0.5, 0.4, 0);
+    filter.rotation.z = Math.PI / 2;
+    fuelGroup.add(filter);
+    
+    // Fuel rail
+    const railGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+    const railMaterial = new THREE.MeshPhongMaterial({ color: 0x555555 });
+    const rail = new THREE.Mesh(railGeometry, railMaterial);
+    rail.position.set(1, 0.9, 0);
+    fuelGroup.add(rail);
+    
+    // Multiple injectors on the rail
+    for (let i = 0; i < 4; i++) {
+      const smallInjectorGeometry = new THREE.ConeGeometry(0.05, 0.15, 8);
+      const smallInjector = new THREE.Mesh(smallInjectorGeometry, injectorMaterial);
+      smallInjector.position.set(0.7 + (i * 0.2), 0.8, 0.2);
+      smallInjector.rotation.x = Math.PI / 2;
+      fuelGroup.add(smallInjector);
+    }
+    
+    // Fuel drops (animated in the update loop)
+    for (let i = 0; i < 5; i++) {
+      const dropGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+      const dropMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0xFFAA00,
+        transparent: true,
+        opacity: 0.8
+      });
+      const drop = new THREE.Mesh(dropGeometry, dropMaterial);
+      drop.position.set(1.2 + (i * 0.05), 0.8 - (i * 0.05), 0);
+      fuelGroup.add(drop);
+    }
+    
+    scene.add(fuelGroup);
+  };
+  
+  const createElectricalModel = (scene) => {
+    const electricalGroup = new THREE.Group();
+    
+    // Battery
+    const batteryBaseGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.7);
+    const batteryBaseMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
+    const batteryBase = new THREE.Mesh(batteryBaseGeometry, batteryBaseMaterial);
+    electricalGroup.add(batteryBase);
+    
+    // Battery terminals
+    const posTerminalGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 16);
+    const posTerminalMaterial = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
+    const posTerminal = new THREE.Mesh(posTerminalGeometry, posTerminalMaterial);
+    posTerminal.position.set(0.4, 0.5, 0);
+    electricalGroup.add(posTerminal);
+    
+    const negTerminalGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 16);
+    const negTerminalMaterial = new THREE.MeshPhongMaterial({ color: 0x0000FF });
+    const negTerminal = new THREE.Mesh(negTerminalGeometry, negTerminalMaterial);
+    negTerminal.position.set(-0.4, 0.5, 0);
+    electricalGroup.add(negTerminal);
+    
+    // Alternator
+    const altBodyGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16);
+    const altBodyMaterial = new THREE.MeshPhongMaterial({ color: 0x777777 });
+    const altBody = new THREE.Mesh(altBodyGeometry, altBodyMaterial);
+    altBody.position.set(1.5, 0, 0);
+    altBody.rotation.z = Math.PI / 2;
+    electricalGroup.add(altBody);
+    
+    // Alternator pulley
+    const pulleyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16);
+    const pulleyMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+    const pulley = new THREE.Mesh(pulleyGeometry, pulleyMaterial);
+    pulley.position.set(1.8, 0, 0);
+    pulley.rotation.z = Math.PI / 2;
+    electricalGroup.add(pulley);
+    
+    // ECU (Electronic Control Unit)
+    const ecuGeometry = new THREE.BoxGeometry(0.8, 0.2, 0.6);
+    const ecuMaterial = new THREE.MeshPhongMaterial({ color: 0x006600 });
+    const ecu = new THREE.Mesh(ecuGeometry, ecuMaterial);
+    ecu.position.set(0, 0, -1);
+    electricalGroup.add(ecu);
+    
+    // Wiring
+    const wireGeometry1 = new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.4, 0.5, 0),
+        new THREE.Vector3(0.7, 0.4, 0),
+        new THREE.Vector3(1.0, 0, 0),
+        new THREE.Vector3(1.3, 0, 0)
+      ]),
+      20,
+      0.03,
+      8,
+      false
+    );
+    const wireRedMaterial = new THREE.MeshPhongMaterial({ color: 0xFF0000 });
+    const wire1 = new THREE.Mesh(wireGeometry1, wireRedMaterial);
+    electricalGroup.add(wire1);
+    
+    const wireGeometry2 = new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.4, 0.5, 0),
+        new THREE.Vector3(-0.7, 0.4, -0.3),
+        new THREE.Vector3(-0.7, 0, -0.7),
+        new THREE.Vector3(-0.3, 0, -1)
+      ]),
+      20,
+      0.03,
+      8,
+      false
+    );
+    const wireBlueMaterial = new THREE.MeshPhongMaterial({ color: 0x0000FF });
+    const wire2 = new THREE.Mesh(wireGeometry2, wireBlueMaterial);
+    electricalGroup.add(wire2);
+    
+    // Starter motor
+    const starterGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.6, 16);
+    const starterMaterial = new THREE.MeshPhongMaterial({ color: 0x888888 });
+    const starter = new THREE.Mesh(starterGeometry, starterMaterial);
+    starter.position.set(-1.5, -0.2, 0);
+    starter.rotation.z = Math.PI / 3;
+    electricalGroup.add(starter);
+    
+    // Headlight
+    const headlightGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
+    const headlightMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0xffffcc,
+      transparent: true,
+      opacity: 0.7
+    });
+    const headlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+    headlight.position.set(0, 0, 1);
+    headlight.rotation.x = Math.PI / 2;
+    electricalGroup.add(headlight);
+    
+    // Headlight bulb
+    const bulbGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const bulbMaterial = new THREE.MeshPhongMaterial({ 
+      color: 0xffffee,
+      emissive: 0xffffaa,
+      emissiveIntensity: 0.5
+    });
+    const bulb = new THREE.Mesh(bulbGeometry, bulbMaterial);
+    bulb.position.set(0, 0, 0.8);
+    electricalGroup.add(bulb);
+    
+    // Add electronics components to ECU
+    for (let i = 0; i < 6; i++) {
+      const chipGeometry = new THREE.BoxGeometry(0.1, 0.05, 0.1);
+      const chipMaterial = new THREE.MeshPhongMaterial({ color: 0x111111 });
+      const chip = new THREE.Mesh(chipGeometry, chipMaterial);
+      chip.position.set(0, 0.12, -1 + (i * 0.15) - 0.3);
+      electricalGroup.add(chip);
+    }
+    
+    scene.add(electricalGroup);
+  };
+  
+  const handleZoomIn = () => {
+    if (sceneRef.current) {
+      sceneRef.current.camera.position.z -= 0.5;
+    }
+  };
+  
+  const handleZoomOut = () => {
+    if (sceneRef.current) {
+      sceneRef.current.camera.position.z += 0.5;
+    }
+  };
+  
+  const handleResetView = () => {
+    if (sceneRef.current) {
+      sceneRef.current.camera.position.set(0, 0, 5);
+      sceneRef.current.camera.rotation.set(0, 0, 0);
+    }
+  };
+  
+  const sections = [
+    {
+      id: 'engine',
+      title: 'エンジン',
+      subtitle: 'パワーの源',
+      icon: <Wrench className="w-10 h-10 text-red-500" />,
+      description: 'エンジンは車の心臓部で、化学エネルギー(燃料)を機械的な動力に変換します。ガソリンエンジンの場合、空気と燃料の混合気がシリンダー内で圧縮され、点火プラグによって点火されます。この爆発的な燃焼がピストンを押し下げ、クランクシャフトを回転させて動力を生み出します。',
+      details: [
+        { 
+          title: '4ストローク式エンジン', 
+          text: '1. 吸気：ピストンが下がり、バルブから混合気が吸い込まれる\n2. 圧縮：両バルブが閉じた状態でピストンが上がり混合気を圧縮\n3. 燃焼：点火プラグにより圧縮された混合気が爆発し、ピストンを押し下げる\n4. 排気：排気バルブが開き、ピストンが上がって燃焼ガスを排出' 
+        },
+        { 
+          title: 'エンジン形式', 
+          text: '直列エンジン：シリンダーが一列に並ぶシンプルな構造。バランスが良く製造コストが低い。\nV型エンジン：シリンダーがV字型に配置され、コンパクトで高出力。\n水平対向エンジン：シリンダーが水平に向かい合い、重心が低く安定性が高い。\nロータリーエンジン：ピストンの代わりにローターが回転し、高回転・高出力だが燃費効率が低い。' 
+        },
+        { 
+          title: '重要コンポーネント', 
+          text: 'ピストン：爆発力を受け、上下運動をする部品\nクランクシャフト：ピストンの上下運動を回転運動に変換\nカムシャフト：バルブの開閉タイミングを制御\n点火システム：正確なタイミングで混合気に点火\nバルブトレイン：吸気と排気を制御するバルブ機構\nターボチャージャー/スーパーチャージャー：より多くの空気をエンジンに送り込み、出力を向上させる装置' 
+        },
+        {
+          title: 'エンジン性能と特性',
+          text: '排気量：シリンダー内の総容積。一般的に大きいほど高出力だが、現代の小排気量ターボエンジンは高効率で高出力。\n圧縮比：混合気が圧縮される比率。高いほど効率が良いが、ノッキングのリスクも高まる。\nトルク：エンジンの「回す力」。低回転でのトルクが高いと発進や坂道に強い。\n馬力：エンジンの出力。高回転で最大値に達することが多く、最高速度に影響。\nレッドライン：エンジンの安全な最高回転数。これを超えると損傷リスクが高まる。'
+        }
+      ],
+      troubleshooting: [
+        '始動しない：バッテリー、燃料供給、点火系統を確認',
+        '過熱：冷却システム不良、冷却液不足、サーモスタット故障などを確認',
+        '異音：タイミングベルト、バルブ、ベアリングの損傷などを確認',
+        '出力不足：燃料・エアフィルター、点火プラグ、センサー類を確認',
+        'オイル漏れ：ガスケット、シール、オイルパンの損傷などを確認'
+      ],
+      maintenance: [
+        'オイル交換：3,000〜10,000km毎（車種による）',
+        'オイルフィルター交換：オイル交換時',
+        'エアフィルター交換：15,000〜30,000km毎',
+        '点火プラグ交換：30,000〜100,000km毎（種類による）',
+        'タイミングベルト：60,000〜100,000km毎（チェーン式は長寿命）'
+      ]
+    },
+    {
+      id: 'transmission',
+      title: 'トランスミッション',
+      subtitle: '動力伝達システム',
+      icon: <Settings className="w-10 h-10 text-blue-500" />,
+      description: 'トランスミッションはエンジンの回転力を車輪に伝えるシステムで、異なる速度やトルク要求に対応するために車速とエンジン回転数の関係を調整します。適切なギア比を選択することで、効率的な加速や燃費向上を実現します。',
+      details: [
+        { 
+          title: 'マニュアルトランスミッション(MT)', 
+          text: 'ドライバーが手動でギアを操作するタイプ。クラッチペダルを踏んでエンジンとトランスミッションを一時的に切り離し、ギアチェンジを行います。\n\n構成部品：\n・クラッチ：エンジンとトランスミッションの接続/切断を行う\n・ギアボックス：複数のギア(歯車)が組み合わさり、異なるギア比を実現\n・シンクロメッシュ：スムーズなギアチェンジを補助する機構\n・シフトフォーク：ギアを物理的に移動させる部品\n\n特徴：\n・ドライバーの直接的な制御が可能\n・メカニカルな操作感と一体感\n・構造がシンプルで故障が少ない\n・燃費効率が良い傾向にある\n・熟練を要する' 
+        },
+        { 
+          title: 'オートマチックトランスミッション(AT)', 
+          text: '油圧制御により自動的にギアチェンジを行うタイプ。トルクコンバーターがクラッチの役割を果たし、流体力学を利用してエンジンの動力を伝達します。\n\n構成部品：\n・トルクコンバーター：流体を介して動力を伝達\n・プラネタリーギアセット：複数のギア比を実現する遊星歯車機構\n・バルブボディ：油圧でギアチェンジを制御\n・クラッチパック：異なるギア比の切り替えを行う\n\n特徴：\n・運転が容易で渋滞にも強い\n・スムーズな乗り心地\n・最新型は燃費も向上\n・複雑な構造で重量が重い\n・修理コストが高い傾向にある' 
+        },
+        { 
+          title: 'デュアルクラッチトランスミッション(DCT)', 
+          text: '2つのクラッチを使い、奇数ギアと偶数ギアをそれぞれ別々に制御するシステム。次に使うギアをあらかじめ選択しておくことで、超高速なギアチェンジを実現します。\n\n構成部品：\n・デュアルクラッチ：奇数/偶数ギア用の2つのクラッチ\n・2つの入力軸：それぞれのクラッチに対応\n・電子制御システム：最適なギアシフトタイミングを計算\n\n特徴：\n・マニュアルの直接性とオートマチックの便利さを兼ね備える\n・超高速ギアチェンジ（0.2秒以下）\n・スポーティな走行感覚\n・燃費効率が良い\n・高温時の耐久性に課題あり' 
+        },
+        {
+          title: 'CVT（無段変速機）',
+          text: '無限の変速比を持つベルトとプーリーにより、常に最適なギア比を維持できるトランスミッション。エンジンを最も効率の良い回転数で使用できるため、燃費向上に貢献します。\n\n構成部品：\n・可変プーリー：直径を変えることでギア比を調整\n・金属ベルト/チェーン：プーリー間で動力を伝達\n・油圧制御システム：ベルト張力やプーリー位置を制御\n\n特徴：\n・常に最適なギア比を維持\n・スムーズな加速（段付き感がない）\n・優れた燃費効率\n・高トルクへの対応が苦手\n・独特の走行フィーリング（エンジン回転数が一定になりやすい）'
+        }
+      ],
+      troubleshooting: [
+        'ギアチェンジの不具合：油圧システム、センサー、ソレノイドの不良',
+        '異音：ベアリング、歯車の摩耗や損傷',
+        'オイル漏れ：ガスケット、シールの劣化',
+        'クラッチの滑り（MT/DCT）：クラッチディスクの摩耗',
+        'シフトショック（AT）：電子制御不良、油圧制御不良'
+      ],
+      maintenance: [
+        'トランスミッションオイル交換：30,000〜60,000km毎（ATF、MTF）',
+        'フィルター交換（AT）：オイル交換時',
+        'クラッチ点検（MT/DCT）：操作感に異常を感じたとき',
+        'CVTフルード交換：メーカー推奨間隔（一般的に40,000〜100,000km）'
+      ]
+    },
+    {
+      id: 'suspension',
+      title: 'サスペンション',
+      subtitle: '乗り心地と操縦性',
+      icon: <Compass className="w-10 h-10 text-green-500" />,
+      description: 'サスペンションは車体とタイヤの間に位置し、路面からの衝撃を吸収すると同時に、タイヤが常に路面と適切に接触するよう制御します。乗り心地と操縦安定性の両立という相反する要求をバランスさせる重要なシステムです。',
+      details: [
+        { 
+          title: 'マクファーソンストラット式', 
+          text: 'コンパクトで軽量、コスト効率の良いサスペンション形式。特にフロントに多く採用されています。\n\n構成部品：\n・ストラット：スプリングとショックアブソーバーが一体化した構造\n・ロアアーム：横方向の力を支え、車輪の上下動を案内\n・スタビライザー：左右のロール（傾き）を抑制する棒状の部品\n\n特徴：\n・部品点数が少なく整備が簡単\n・軽量で省スペース\n・コスト効率が良い\n・キャンバー変化が大きく、極限の操縦性能では制約あり' 
+        },
+        { 
+          title: 'ダブルウィッシュボーン式', 
+          text: '上下2本のアームがA字型に配置された高性能なサスペンション。特に高級車やスポーツカーに採用されます。\n\n構成部品：\n・アッパーアーム：A字型の上側のアーム\n・ロアアーム：A字型の下側のアーム\n・コイルスプリング：荷重を支える\n・ショックアブソーバー：振動を減衰させる\n・ボールジョイント：アームと車輪をつなぐ可動部\n\n特徴：\n・キャンバー変化を最小限に抑え、常に最適なタイヤ接地を維持\n・高い剛性と優れた操縦安定性\n・複雑な構造でコストと重量が増加\n・整備性がやや難しい' 
+        },
+        { 
+          title: 'マルチリンク式', 
+          text: '複数のリンク（アーム）によって車輪の動きを精密に制御する現代の高性能サスペンション。各リンクが特定の力を担当することで最適な車輪配置を実現します。\n\n構成部品：\n・複数のコントロールアーム：前後/上下/横方向の力をそれぞれ担当\n・コイルスプリングとショックアブソーバー\n・ブッシュ：ゴム製の緩衝材で振動を吸収\n\n特徴：\n・最高水準の乗り心地と操縦性を両立\n・車輪の動きを精密に制御可能\n・設計の自由度が高い\n・非常に複雑で部品点数が多い\n・コストと重量が増加\n・整備に専門知識が必要' 
+        },
+        {
+          title: 'サスペンションの重要パラメーター',
+          text: 'キャンバー角：タイヤの垂直方向からの傾き。負のキャンバーでコーナリング性能向上。\nトー角：タイヤの前後方向の平行度。トーインで直進安定性向上、トーアウトで旋回性能向上。\nキャスター角：ステアリング軸の前後方向の傾き。大きいほど直進安定性が向上。\nスプリングレート：スプリングの硬さ。硬いほど応答性が向上し、柔らかいほど乗り心地が向上。\nダンピング：ショックアブソーバーの減衰力。強すぎると硬く、弱すぎるとバウンドする。\nライドハイト：車高。低いほど重心が下がり安定するが、最低地上高が減少。'
+        }
+      ],
+      troubleshooting: [
+        '異音：ブッシュ、ボールジョイント、スタビライザーリンクの劣化',
+        '乗り心地の悪化：ショックアブソーバーの劣化、スプリングの沈み',
+        '片側に傾く：スプリングの折れ、リンクの曲がり',
+        'タイヤの偏摩耗：アライメント不良',
+        '操縦安定性の低下：ブッシュ類の劣化、ショックアブソーバーの性能低下'
+      ],
+      maintenance: [
+        'ショックアブソーバー点検：50,000〜80,000km毎',
+        'ボールジョイント・タイロッドエンド点検：定期点検時',
+        'ブッシュ類の点検：異音・違和感発生時',
+        'ホイールアライメント調整：タイヤ交換時、事故後、部品交換後'
+      ]
+    },
+    {
+      id: 'brakes',
+      title: 'ブレーキ',
+      subtitle: '安全の要',
+      icon: <Gauge className="w-10 h-10 text-yellow-500" />,
+      description: 'ブレーキシステムは車の速度を減速・停止させる最も重要な安全装置です。ドライバーがブレーキペダルを踏むと、マスターシリンダーで油圧が発生し、その圧力でブレーキパッドやシューをローターやドラムに押し付けて摩擦力を生み出し、車輪の回転を遅らせます。',
+      details: [
+        { 
+          title: 'ディスクブレーキ', 
+          text: '回転するディスク（ローター）を両側からパッドで挟み込んで制動力を得るシステム。現代の車では特にフロントに広く採用されています。\n\n構成部品：\n・ブレーキローター：車輪と一緒に回転する円盤\n・ブレーキパッド：摩擦材で作られた制動部品\n・キャリパー：パッドをローターに押し付ける油圧機構\n・ピストン：油圧でパッドを押す部品\n\n特徴：\n・優れた制動力と熱放散性能\n・フェード（熱による制動力低下）に強い\n・自己清掃作用があり、水濡れ時の性能低下が少ない\n・整備が容易\n・固体型、ベンチレーテッド型（内部に冷却用空間がある）、ドリルド型（穴開き）などがある' 
+        },
+        { 
+          title: 'ドラムブレーキ', 
+          text: '円筒状のドラム内側にシューを押し付けて制動力を得るシステム。主にリアに使用され、コストが低いのが特徴です。\n\n構成部品：\n・ブレーキドラム：車輪と一緒に回転する円筒\n・ブレーキシュー：ドラム内側に押し付けられる制動部品\n・ホイールシリンダー：油圧でシューを押し広げる\n・リターンスプリング：ブレーキ解除時にシューを元の位置に戻す\n\n特徴：\n・構造がシンプルでコストが低い\n・パーキングブレーキとの併用が容易\n・熱放散性に劣り、連続使用でフェードが発生しやすい\n・自己倍力作用（セルフエナジャイジング）により少ない力で高い制動力を得られる\n・水濡れ時に性能が低下しやすい' 
+        },
+        { 
+          title: '電子制御ブレーキシステム', 
+          text: '現代の車には様々な電子制御ブレーキシステムが搭載されています。\n\nABS（アンチロックブレーキシステム）：\n・急ブレーキ時にタイヤのロック（滑り）を防止\n・各車輪の回転速度を監視し、ロック寸前でブレーキ圧を自動調整\n・操舵性を維持しながら制動距離を最適化\n\nEBD（電子制動力配分装置）：\n・車両の積載状況に応じて前後のブレーキ力を最適配分\n・軽い積載時はリア側の制動力を抑え、重い積載時は増加させる\n\nBA（ブレーキアシスト）：\n・緊急時のブレーキペダル操作を検知し、最大制動力を自動的に発生\n・パニック時のペダル踏力不足を補う' 
+        },
+        {
+          title: '回生ブレーキと電動型ブレーキ',
+          text: 'ハイブリッド車や電気自動車に採用されている最新技術です。\n\n回生ブレーキ：\n・減速時のエネルギーを電気に変換して回収\n・モーターを発電機として機能させる\n・摩擦ブレーキと協調制御され、エネルギー効率を向上\n\n電動パーキングブレーキ：\n・ボタン操作で作動する電動モーター駆動のパーキングブレーキ\n・自動ホールド機能と組み合わせて信号待ちでの便利さを向上\n・坂道発進アシスト機能も統合可能\n\nブレーキバイワイヤ：\n・機械的な接続を減らし、電気信号でブレーキを制御\n・より精密なブレーキコントロールが可能\n・将来の自動運転技術の基盤となる技術'
+        }
+      ],
+      troubleshooting: [
+        '異音（キーキー音）：パッドやシューの摩耗、金属接触',
+        'ブレーキの引き：片側のブレーキの効きすぎ、キャリパーの固着',
+        'ペダルが柔らかい：ブレーキ液漏れ、エア混入',
+        'ペダルが硬い：ブースター不良、配管の詰まり',
+        '制動距離の延長：パッド/シューの摩耗、オイル付着、ブレーキ液の劣化'
+      ],
+      maintenance: [
+        'ブレーキパッド/シュー点検：10,000km毎または定期点検時',
+        'ブレーキローター/ドラム点検：パッド/シュー交換時',
+        'ブレーキ液交換：2年または30,000km毎',
+        'キャリパー/ホイールシリンダー点検：オーバーホール時'
+      ]
+    },
+    {
+      id: 'fuel',
+      title: '燃料システム',
+      subtitle: 'エネルギー供給',
+      icon: <Droplet className="w-10 h-10 text-purple-500" />,
+      description: '燃料システムは燃料をタンクからエンジンへ、適切なタイミングと量で送り届ける役割を担います。現代の車では電子制御による精密な燃料噴射が一般的で、効率的な燃焼と排出ガスの削減に貢献しています。',
+      details: [
+        { 
+          title: '電子制御燃料噴射システム（EFI）', 
+          text: '現代の主流となっている高精度な燃料供給システム。各種センサーからの情報をもとにECUが最適な燃料量と噴射タイミングを計算します。\n\n構成部品：\n・フューエルポンプ：タンクから燃料を送り出す\n・フューエルフィルター：不純物を除去\n・燃料レール：各インジェクターへ均等に燃料を分配\n・インジェクター：燃料を噴射する電磁バルブ\n・プレッシャーレギュレーター：燃料圧を一定に保つ\n・各種センサー：空気流量、酸素量、エンジン温度などを検知\n\n特徴：\n・精密な燃料制御が可能\n・優れた燃費と出力特性\n・低排出ガス\n・始動性の向上\n・高い信頼性' 
+        },
+        { 
+          title: '直噴システム', 
+          text: 'シリンダー内に直接燃料を噴射する最新のシステム。従来のポート噴射（インテークマニホールドへの噴射）と比べて、より効率的な燃焼が可能です。\n\n特徴：\n・燃料が蒸発する際の吸熱効果によるノッキング抑制\n・成層燃焼モードによる超希薄燃焼が可能\n・燃費向上と高出力の両立\n・高い噴射圧（200気圧以上）による微粒化\n・より精密な噴射タイミング制御\n\n課題：\n・インジェクターへの炭素堆積（カーボンデポジット）\n・高コスト\n・複雑なシステム制御' 
+        },
+        { 
+          title: 'キャブレター式システム', 
+          text: 'かつて主流だった機械式の混合気生成装置。ベンチュリ管の原理を利用し、空気の流れによって燃料を吸い上げます。現代では小型エンジンやクラシックカーなどに限定されています。\n\n構成部品：\n・フロートチャンバー：一定量の燃料を貯える\n・メインジェット：通常走行時の燃料供給\n・スロージェット：アイドリング時の燃料供給\n・チョーク：冷間始動時に混合気を濃くする\n\n特徴：\n・機械的な構造でシンプル\n・電子部品に依存しない\n・調整や修理が比較的容易\n・精密な燃料制御が難しい\n・温度や気圧の変化に弱い' 
+        },
+        {
+          title: '代替燃料システム',
+          text: 'ガソリンや軽油以外の代替燃料に対応するシステムも発展しています。\n\nLPG/CNG(プロパン/天然ガス)システム：\n・ガソリンエンジンをベースに改造\n・専用の高圧タンク、減圧弁、ガス用インジェクターを装備\n・CO2排出量が少なく、燃料コストも安価\n\n水素燃料システム：\n・内燃機関での燃焼または燃料電池での発電に使用\n・超高圧タンク（700気圧）で貯蔵\n・排出物は水のみというクリーンな特性\n\nフレックス燃料システム：\n・エタノールとガソリンの任意の混合比に対応\n・燃料の成分を検知して噴射量を自動調整\n・特に南米で普及'
+        }
+      ],
+      troubleshooting: [
+        'エンジン始動不良：フューエルポンプ不良、インジェクター詰まり',
+        'アイドリング不安定：エアフローセンサー不良、吸気漏れ',
+        '加速不良：燃圧低下、燃料フィルター詰まり',
+        '燃費悪化：酸素センサー不良、インジェクター漏れ',
+        '異臭：燃料漏れ、蒸発ガス制御システム不良'
+      ],
+      maintenance: [
+        '燃料フィルター交換：30,000〜60,000km毎',
+        'インジェクタークリーニング：60,000〜100,000km毎または症状発生時',
+        'フューエルポンプ点検：定期点検時',
+        '燃料ライン点検：漏れ確認のため定期的に'
+      ]
+    },
+    {
+      id: 'electrical',
+      title: '電装系統',
+      subtitle: '電力管理',
+      icon: <Battery className="w-10 h-10 text-orange-500" />,
+      description: '電装系統は車の電気部品に電力を供給し、制御するシステムです。バッテリーやオルタネーターによる電力供給から、複雑な電子制御ユニット（ECU）まで、現代の車の性能と快適性を支える重要な要素となっています。',
+      details: [
+        { 
+          title: '電源供給システム', 
+          text: '車の電気系統の基盤となる電力供給を担当するシステムです。\n\nバッテリー：\n・エンジン停止時の電力源およびエンジン始動用電力の供給\n・12V鉛蓄電池が一般的（EVでは高電圧リチウムイオン電池も）\n・始動、照明、点火、電子機器など全ての電装品の基盤\n\nオルタネーター（発電機）：\n・エンジンの回転力を利用して発電\n・バッテリーの充電と走行中の電装品への電力供給\n・整流器とレギュレーターにより安定した電力を供給\n\nスターターモーター：\n・バッテリーからの電力でエンジンを始動させるモーター\n・高トルクでエンジンを回転させる\n・ソレノイドによる駆動ギアの噛み合いと電力供給の制御' 
+        },
+        { 
+          title: '電子制御ユニット(ECU)', 
+          text: '現代の車の頭脳となるコンピューター。複数のECUが連携して車両の様々な機能を制御します。\n\nエンジン制御ユニット：\n・燃料噴射、点火時期、アイドリング制御などエンジン全般を管理\n・各種センサーからの入力に基づき最適な制御を実行\n・診断機能による不具合検出\n\nトランスミッション制御ユニット：\n・自動変速機のシフトタイミングや変速特性を制御\n・走行状況に応じた最適なギア選択\n\nボディ制御ユニット：\n・ライト、ワイパー、パワーウィンドウなどの制御\n・キーレスエントリーやイモビライザー（盗難防止）の管理\n\nABS/ESC制御ユニット：\n・ブレーキ制御、車両安定性制御\n・各車輪のセンサー情報に基づく制御' 
+        },
+        { 
+          title: 'センサーネットワーク', 
+          text: '様々なセンサーが車両の状態を監視し、ECUに情報を送ります。\n\n主要なセンサー：\n・エアフローセンサー/MAFセンサー：吸入空気量を測定\n・O2センサー/空燃比センサー：排気ガス中の酸素濃度を測定し、燃焼効率を監視\n・クランクポジションセンサー：エンジンの回転速度と位置を検出\n・カムポジションセンサー：バルブタイミングの基準位置を検出\n・ノックセンサー：異常燃焼（ノッキング）を検出\n・水温センサー：エンジン冷却水の温度を測定\n・スロットルポジションセンサー：アクセル開度を検出\n\n通信ネットワーク：\n・CAN（Controller Area Network）：高速な車載ネットワーク規格\n・LIN（Local Interconnect Network）：低コストの単純な制御向けネットワーク\n・FlexRay：高信頼性の高速ネットワーク（安全性重視の制御向け）' 
+        },
+        {
+          title: '先進運転支援システム(ADAS)の電気系統',
+          text: '最新の安全技術を支える高度な電子システムです。\n\nカメラ/レーダー/LiDARシステム：\n・車両周囲の状況を認識するセンサー\n・障害物検知、車線認識、歩行者検知などを行う\n\nADAS ECU：\n・センサー情報を処理し、状況を判断\n・衝突被害軽減ブレーキ、車線維持支援などを制御\n\n電動パワーステアリング(EPS)：\n・コンピューター制御の電動アシスト\n・自動操舵機能への対応も可能\n\n48Vマイルドハイブリッドシステム：\n・従来の12Vに加え、48Vの電気系統を追加\n・スタータージェネレーターによるエンジン始動・発電・アシスト\n・より多くの電力を必要とする機能に対応'
+        }
+      ],
+      troubleshooting: [
+        'バッテリー上がり：バッテリーの劣化、オルタネーター不良、電装品の消費電力過多',
+        'エンジン始動不良：スターターモーター不良、バッテリー電圧低下',
+        '充電警告灯点灯：オルタネーターベルト切れ、レギュレーター不良',
+        'ヒューズ切れ：過電流、短絡、部品不良',
+        '電子制御不良：センサー故障、配線不良、ECU障害'
+      ],
+      maintenance: [
+        'バッテリー点検：3ヶ月毎（電圧、液量、端子の腐食）',
+        'オルタネーターベルト点検：張り具合と摩耗を確認',
+        '配線ハーネス点検：被覆損傷、接続部の緩みをチェック',
+        'ECU診断：定期点検時やトラブル発生時'
+      ]
+    }
+  ];
+
+  const selectedSectionData = sections.find(section => section.id === selectedSection);
+  
+  return (
+    <div className="w-full max-w-6xl mx-auto p-4 bg-gray-100 min-h-screen">
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold mb-2">車の仕組み 3Dモデル学習アプリ</h1>
+        <p className="text-gray-600">各システムを選択して3Dモデルと詳細解説で学びましょう</p>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="md:w-1/3">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>主要システム</CardTitle>
+              <CardDescription>車の主要な構成要素</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {sections.map((section) => (
+                  <li key={section.id}>
+                    <button
+                      onClick={() => setSelectedSection(section.id)}
+                      className={`flex items-center w-full p-3 rounded-lg text-left transition-colors ${
+                        selectedSection === section.id
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="mr-3">{section.icon}</div>
+                      <div>
+                        <div className="font-medium">{section.title}</div>
+                        <div className="text-sm text-gray-500">{section.subtitle}</div>
+                      </div>
+                      {selectedSection === section.id && (
+                        <div className="ml-auto">→</div>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="md:w-2/3">
+          <Card className="h-full">
+            <CardHeader>
+              <div className="flex items-center">
+                {selectedSectionData?.icon}
+                <div className="ml-3">
+                  <CardTitle>{selectedSectionData?.title}</CardTitle>
+                  <CardDescription>{selectedSectionData?.subtitle}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-6">
+                <div className="bg-gray-800 rounded-lg h-80 mb-4 relative">
+                  <canvas 
+                    ref={canvasRef} 
+                    className="w-full h-full rounded-lg"
+                  />
+                  <div className="absolute bottom-4 right-4 flex gap-2">
+                    <button 
+                      onClick={handleZoomIn}
+                      className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30"
+                    >
+                      <ZoomIn size={20} className="text-white" />
+                    </button>
+                    <button 
+                      onClick={handleZoomOut}
+                      className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30"
+                    >
+                      <ZoomOut size={20} className="text-white" />
+                    </button>
+                    <button 
+                      onClick={handleResetView}
+                      className="bg-white bg-opacity-20 p-2 rounded-full hover:bg-opacity-30"
+                    >
+                      <RotateCw size={20} className="text-white" />
+                    </button>
+                  </div>
+                  
+                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-3 text-white text-sm rounded-b-lg">
+                    {selectedSection === 'engine' && '3Dエンジンモデル: シリンダー、ピストン、クランクシャフト、バルブ機構の相互関係を示す断面モデル'}
+                    {selectedSection === 'transmission' && '3Dトランスミッションモデル: ギア、シャフト、シフトフォークで構成される変速機構のモデル'}
+                    {selectedSection === 'suspension' && '3Dサスペンションモデル: ホイール、ショックアブソーバー、スプリング、コントロールアームの構造'}
+                    {selectedSection === 'brakes' && '3Dブレーキモデル: ディスク、キャリパー、パッド、油圧系統を含むブレーキシステム'}
+                    {selectedSection === 'fuel' && '3D燃料システムモデル: 燃料タンク、ポンプ、フィルター、インジェクターなどの構成要素'}
+                    {selectedSection === 'electrical' && '3D電装系統モデル: バッテリー、オルタネーター、スターター、ECU、配線の関係を示す'}
+                  </div>
+                </div>
+                <p className="text-gray-700">{selectedSectionData?.description}</p>
+              </div>
+
+              <div className="flex border-b mb-4">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`py-2 px-4 font-medium ${
+                    activeTab === 'overview' 
+                      ? 'border-b-2 border-blue-500 text-blue-700' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  概要
+                </button>
+                <button
+                  onClick={() => setActiveTab('trouble')}
+                  className={`py-2 px-4 font-medium ${
+                    activeTab === 'trouble' 
+                      ? 'border-b-2 border-blue-500 text-blue-700' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  トラブルシューティング
+                </button>
+                <button
+                  onClick={() => setActiveTab('maintenance')}
+                  className={`py-2 px-4 font-medium ${
+                    activeTab === 'maintenance' 
+                      ? 'border-b-2 border-blue-500 text-blue-700' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  メンテナンス
+                </button>
+              </div>
+
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {selectedSectionData?.details.map((detail, index) => (
+                    <div key={index} className="bg-white rounded-lg shadow-sm p-4">
+                      <h3 className="text-lg font-medium mb-2">{detail.title}</h3>
+                      <div className="text-gray-700 whitespace-pre-line">
+                        {detail.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === 'trouble' && selectedSectionData?.troubleshooting && (
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <h3 className="text-lg font-medium mb-3">主なトラブルと原因</h3>
+                  <ul className="space-y-2">
+                    {selectedSectionData.troubleshooting.map((item, index) => (
+                      <li key={index} className="flex items-start">
+                        <div className="mr-2 mt-1 text-red-500">●</div>
+                        <div className="text-gray-700">{item}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {activeTab === 'maintenance' && selectedSectionData?.maintenance && (
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <h3 className="text-lg font-medium mb-3">定期メンテナンス</h3>
+                  <ul className="space-y-2">
+                    {selectedSectionData.maintenance.map((item, index) => (
+                      <li key={index} className="flex items-start">
+                        <div className="mr-2 mt-1 text-green-500">✓</div>
+                        <div className="text-gray-700">{item}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-medium text-blue-800 mb-2">操作原理と性能の関係</h3>
+                <p className="text-sm text-gray-700">
+                  {selectedSection === 'engine' && '高性能エンジンはより多くの馬力を生み出しますが、効率と燃費のバランスが重要です。高回転型エンジンは最高出力が高く、低回転型は発進加速やトルクに優れます。ターボチャージャーは排気ガスのエネルギーを利用して、小排気量でも高出力を実現します。'}
+                  {selectedSection === 'transmission' && 'マニュアルトランスミッションは直接的な操作感と効率の良さが特徴ですが、操作の習熟が必要です。オートマチックは操作が簡単で快適ですが、パワーロスがあります。DCTは両方の長所を兼ね備え、レースカーなどの高性能車に採用されています。CVTは燃費重視の車に適しています。'}
+                  {selectedSection === 'suspension' && 'サスペンションセッティングはコーナリング性能と乗り心地のバランスで調整します。スポーツカーは硬めのセッティングで応答性を高め、高級車は柔らかめで乗り心地を重視しています。電子制御サスペンションは走行モードに応じて特性を変化させることができます。'}
+                  {selectedSection === 'brakes' && 'ブレーキシステムはスピードに応じた制動力と熱処理能力が重要です。スポーツカーは大径ディスクと多ピストンキャリパーで強力な制動力を確保します。近年は電子制御による制動力配分や回生ブレーキの併用で、安全性と効率を両立しています。'}
+                  {selectedSection === 'fuel' && '燃料システムの進化により、同じ排気量でもより多くの出力と少ない排出ガスを実現できるようになりました。直噴エンジンは燃料を精密に制御し、効率と出力を高めています。ターボやスーパーチャージャーと組み合わせることで、排気量以上の性能を発揮します。'}
+                  {selectedSection === 'electrical' && '現代の車は電子制御の比率が増加し、ECUによる精密な制御が性能を左右します。エンジン、トランスミッション、サスペンション、ブレーキなど各システムのECUが連携して最適な走行を実現します。ドライバーの操作をセンサーで検知し、意図を先読みする高度な制御も可能になっています。'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CarMechanicsApp;
